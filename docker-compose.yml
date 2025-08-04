@@ -22,6 +22,35 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+  data-loader:
+    build:
+      context: .
+      dockerfile: Dockerfile.data-loader
+    volumes:
+      - ${CSV_PATH:-./data}:/app/data
+    environment:
+      - CSV_PATH=/app/data/${CSV_FILE:-test.csv}
+      - REDIS_URL=redis://redis:6379
+      - DATA_LEVEL=${DATA_LEVEL:-999}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      - redis
+    restart: on-failure
+
   ws-load-tester:
     build:
       context: .
@@ -33,13 +62,17 @@ services:
       - INFLUX_TOKEN=my-super-secret-auth-token
       - INFLUX_ORG=ws-load-tester
       - INFLUX_BUCKET=connection-stats
+      - REDIS_URL=redis://redis:6379
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - RETRY_DELAY_MS=${RETRY_DELAY_MS:-5000}
       - CONNECTION_MODE=${CONNECTION_MODE:-instant}
       - CONNECTION_RATE=${CONNECTION_RATE:-10}
+      - REPLICAS=${REPLICAS:-3}
       # RUNNER_ID will be set to the container hostname automatically
     depends_on:
       - influxdb
+      - redis
+      - data-loader
     deploy:
       replicas: ${REPLICAS:-3}
       resources:
@@ -50,3 +83,4 @@ services:
 
 volumes:
   influxdb-data:
+  redis-data:

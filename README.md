@@ -8,6 +8,7 @@ A Node.js application designed to test WebSocket server capacity by simulating a
 - Supports deploying multiple replicas via Docker Compose or Kubernetes
 - Configurable connection modes: instant or progressive
 - Tracks and reports connection statistics to InfluxDB time-series database
+- Supports dynamic URL variables using test data from CSV files
 - Automatic retry for failed connections
 - Configurable logging levels
 - Graceful shutdown handling
@@ -16,25 +17,117 @@ A Node.js application designed to test WebSocket server capacity by simulating a
 
 - Node.js 22 or higher
 - InfluxDB 2.x server
+- Redis server
 - Docker and Docker Compose (for containerized deployment)
+
+## Architecture
+
+The application consists of two main services:
+
+1. **Data Loader Service**: Reads test data from CSV files, filters it based on level, and stores it in Redis.
+2. **WebSocket Runner Service**: Establishes WebSocket connections using dynamic URLs with variables from the test data.
 
 ## Configuration
 
-The application is configured via environment variables:
+### WebSocket Runner Service
+
+The WebSocket runner service is configured via environment variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `WS_URL` | WebSocket server URL to test | *Required* |
-| `NUM_CONNECTIONS` | Number of WebSocket connections to establish | 100 |
+| `WS_URL` | WebSocket server URL to test (can include variables like `${id}`) | *Required* |
+| `NUM_CONNECTIONS` | Number of WebSocket connections to establish (only used when no CSV data is loaded) | 100 |
+| `REPLICAS` | Number of replicas of the service (used to calculate connections when CSV data is loaded) | 3 |
 | `INFLUX_URL` | InfluxDB server URL | *Required* |
 | `INFLUX_TOKEN` | InfluxDB authentication token | *Required* |
 | `INFLUX_ORG` | InfluxDB organization name | *Required* |
 | `INFLUX_BUCKET` | InfluxDB bucket name | *Required* |
+| `REDIS_URL` | Redis server URL for test data | *Required* |
 | `LOG_LEVEL` | Logging level (debug, info, warn, error) | info |
 | `RETRY_DELAY_MS` | Delay between connection retry attempts (ms) | 5000 |
 | `CONNECTION_MODE` | Connection mode (instant or progressive) | instant |
 | `CONNECTION_RATE` | Connections per second in progressive mode | 10 |
 | `RUNNER_ID` | Unique identifier for the runner | auto-generated |
+
+### Data Loader Service
+
+The data loader service is configured via environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CSV_PATH` | Path to the CSV file with test data | *Required* |
+| `REDIS_URL` | Redis server URL to store test data | *Required* |
+| `DATA_LEVEL` | Maximum level value to filter CSV rows (rows with level <= DATA_LEVEL are included) | 999 |
+| `LOG_LEVEL` | Logging level (debug, info, warn, error) | info |
+
+## Using Dynamic URL Variables
+
+The WebSocket Load Tester supports dynamic URL variables that are replaced with values from test data stored in Redis. This allows you to test WebSocket servers with different parameters for each connection.
+
+### CSV File Format
+
+The CSV file must have the following format:
+- The first line contains column headers
+- The first column must be named `level` (used for filtering)
+- Other columns can have any name and will be available as variables
+
+Example CSV file (`test-data.csv`):
+```csv
+level,id,token
+1,abc123,token1
+2,def456,token2
+3,ghi789,token3
+```
+
+### URL Template Format
+
+In the `WS_URL` environment variable, you can include variables from the CSV file using the `${variable}` syntax:
+
+```
+ws://your-websocket-server.com/ws?id=${id}&token=${token}
+```
+
+When a connection is established, the variables are replaced with values from a row popped from the Redis list. Each row is used only once and then removed from the list, ensuring that each connection uses unique test data.
+
+For example, using the CSV data above, the URL might become:
+```
+ws://your-websocket-server.com/ws?id=def456&token=token2
+```
+
+### Connection Calculation
+
+When CSV data is loaded into Redis, the number of WebSocket connections is automatically calculated based on the formula:
+
+```
+Number of connections = Total number of rows in Redis / Number of replicas
+```
+
+This ensures that all test data is evenly distributed across all replicas of the service. For example, if you have 1000 rows of test data and 5 replicas, each replica will create 200 connections.
+
+If no CSV data is loaded, the service falls back to using the `NUM_CONNECTIONS` environment variable to determine how many connections to establish.
+
+### Running the Data Loader
+
+To load test data from a CSV file:
+
+```
+# Create a directory for test data
+mkdir -p test-data
+
+# Create a CSV file
+cat > test-data/test-data.csv << EOF
+level,id,token
+1,abc123,token1
+2,def456,token2
+3,ghi789,token3
+EOF
+
+# Run the data loader
+export CSV_PATH=./test-data/test-data.csv
+export REDIS_URL=redis://localhost:6379
+export DATA_LEVEL=2  # Only include rows with level <= 2
+pnpm run data-loader
+```
 
 ## Local Development
 
@@ -52,16 +145,24 @@ The application is configured via environment variables:
 
 ### Running Locally
 
-1. Make sure InfluxDB is running and accessible
-2. Set the required environment variables:
+1. Make sure InfluxDB and Redis are running and accessible
+2. Load test data using the data-loader:
    ```
-   export WS_URL=ws://your-websocket-server.com/ws
+   export CSV_PATH=./test-data/test-data.csv
+   export REDIS_URL=redis://localhost:6379
+   export DATA_LEVEL=999
+   pnpm run data-loader
+   ```
+3. Set the required environment variables for the runner:
+   ```
+   export WS_URL="ws://your-websocket-server.com/ws?id=\${id}&token=\${token}"
    export INFLUX_URL=http://localhost:8086
    export INFLUX_TOKEN=your-influxdb-token
    export INFLUX_ORG=your-organization
    export INFLUX_BUCKET=connection-stats
+   export REDIS_URL=redis://localhost:6379
    ```
-3. Run the application:
+4. Run the application:
    ```
    pnpm start
    ```
@@ -92,11 +193,31 @@ docker run -e WS_URL=ws://your-websocket-server.com/ws \
 
 ## Docker Compose Deployment
 
-The included docker-compose.yml file allows you to deploy multiple replicas of the load tester along with InfluxDB:
+The included docker-compose.yml file allows you to deploy all services together:
 
-```
-# Set the WebSocket server URL
-export WS_URL=ws://your-websocket-server.com/ws
+```bash
+# Create a directory for test data
+mkdir -p test-data
+
+# Create a CSV file
+cat > test-data/test-data.csv << EOF
+level,id,token
+1,abc123,token1
+2,def456,token2
+3,ghi789,token3
+EOF
+
+# Set the WebSocket server URL with variables
+export WS_URL="ws://your-websocket-server.com/ws?id=\${id}&token=\${token}"
+
+# Set the path to the CSV file
+export CSV_PATH=./test-data
+
+# Set the CSV filename
+export CSV_FILE=test-data.csv
+
+# Set the maximum level for filtering
+export DATA_LEVEL=2
 
 # Set the number of connections per container
 export NUM_CONNECTIONS=500
@@ -110,6 +231,8 @@ docker-compose up -d
 
 This will start:
 - An InfluxDB container for time-series statistics collection
+- A Redis container for storing test data
+- A data-loader container that reads the CSV file and stores data in Redis
 - Multiple WebSocket load tester containers (5 in this example)
 - Each container will establish 500 connections, for a total of 2,500 connections
 
@@ -120,6 +243,29 @@ You can also scale the number of containers after deployment:
 ```
 docker-compose up -d --scale ws-load-tester=10
 ```
+
+### Using Your Own CSV Data
+
+To use your own CSV data:
+
+1. Create a CSV file with your test data (must include a `level` column)
+2. Mount the directory containing your CSV file:
+   ```
+   export CSV_PATH=/path/to/your/data/directory
+   export CSV_FILE=your-data.csv
+   ```
+3. Set the appropriate DATA_LEVEL to filter rows:
+   ```
+   export DATA_LEVEL=5  # Only include rows with level <= 5
+   ```
+4. Update the WS_URL to use variables from your CSV:
+   ```
+   export WS_URL="ws://your-server.com/ws?param1=\${column1}&param2=\${column2}"
+   ```
+5. Start the services:
+   ```
+   docker-compose up -d
+   ```
 
 ## Monitoring
 

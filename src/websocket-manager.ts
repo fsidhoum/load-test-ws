@@ -2,6 +2,7 @@ import WebSocket from 'ws';
 import { config, ConnectionMode } from './config';
 import logger from './logger';
 import { statsManager } from './stats';
+import { redisClient, TestDataRow } from './redis-client';
 
 // WebSocket connection class to handle individual connections
 class WebSocketConnection {
@@ -11,10 +12,40 @@ class WebSocketConnection {
   private connectStartTime: number = 0;
   private reconnectTimer: NodeJS.Timeout | null = null;
   private isClosing: boolean = false;
+  private testData: TestDataRow | null = null;
+  private urlTemplate: string;
 
-  constructor(url: string, id: number) {
-    this.url = url;
+  constructor(urlTemplate: string, id: number, testData: TestDataRow | null = null) {
+    this.urlTemplate = urlTemplate;
+    this.testData = testData;
+    this.url = this.replaceUrlVariables(urlTemplate, testData);
     this.id = id;
+  }
+
+  // Replace variables in URL with test data values
+  private replaceUrlVariables(urlTemplate: string, testData: TestDataRow | null): string {
+    if (!testData) {
+      logger.debug(`Connection ${this.id}: No test data available, using raw URL`);
+      return urlTemplate;
+    }
+
+    let url = urlTemplate;
+
+    // Replace ${variable} with corresponding value from test data
+    const variableRegex = /@{([^}]+)}/g;
+    let match;
+
+    while ((match = variableRegex.exec(urlTemplate)) !== null) {
+      const variableName = match[1];
+      if (testData[variableName]) {
+        url = url.replace(`@{${variableName}}`, testData[variableName]);
+        logger.debug(`Connection ${this.id}: Replaced @{${variableName}} with ${testData[variableName]}`);
+      } else {
+        logger.warn(`Connection ${this.id}: Variable @{${variableName}} not found in test data`);
+      }
+    }
+
+    return url;
   }
 
   // Connect to the WebSocket server
@@ -123,6 +154,8 @@ class WebSocketManager {
   private connections: WebSocketConnection[] = [];
   private progressiveConnectionTimer: NodeJS.Timeout | null = null;
   private isShuttingDown: boolean = false;
+  private hasTestData: boolean = false;
+  private calculatedNumConnections: number = 0;
 
   constructor() {
     // Register process exit handlers
@@ -132,8 +165,31 @@ class WebSocketManager {
 
   // Initialize connections
   public async initialize(): Promise<void> {
-    logger.info(`Initializing WebSocket manager with ${config.numConnections} connections to ${config.wsUrl}`);
+    // Load test data from Redis
+    logger.info('Attempting to load test data from Redis...');
+    this.hasTestData = await redisClient.loadTestData();
+
+    // Calculate number of connections
+    let numConnections = config.numConnections;
+
+    if (this.hasTestData) {
+      const dataCount = redisClient.getTestDataCount();
+      logger.info(`Successfully loaded ${dataCount} test data rows from Redis`);
+      logger.info('URLs will be generated dynamically using test data');
+
+      // Calculate connections based on Redis data count and replicas
+      numConnections = Math.ceil(dataCount / config.replicas);
+      logger.info(`Calculated ${numConnections} connections per replica (${dataCount} data rows / ${config.replicas} replicas)`);
+    } else {
+      logger.warn('No test data available, using NUM_CONNECTIONS environment variable');
+      logger.info(`Using ${numConnections} connections from NUM_CONNECTIONS environment variable`);
+    }
+
+    logger.info(`Initializing WebSocket manager with ${numConnections} connections to ${config.wsUrl}`);
     logger.info(`Connection mode: ${config.connectionMode}, Rate: ${config.connectionRate} connections/second`);
+
+    // Store the calculated number of connections for use in connection creation methods
+    this.calculatedNumConnections = numConnections;
 
     if (config.connectionMode === ConnectionMode.INSTANT) {
       await this.createInstantConnections();
@@ -146,8 +202,11 @@ class WebSocketManager {
   private async createInstantConnections(): Promise<void> {
     logger.info('Creating all connections instantly');
 
-    for (let i = 0; i < config.numConnections; i++) {
-      const connection = new WebSocketConnection(config.wsUrl, i + 1);
+    for (let i = 0; i < this.calculatedNumConnections; i++) {
+      // Pop test data from Redis list if available
+      const testData = this.hasTestData ? await redisClient.popTestData() : null;
+
+      const connection = new WebSocketConnection(config.wsUrl, i + 1, testData);
       this.connections.push(connection);
       connection.connect();
 
@@ -168,8 +227,8 @@ class WebSocketManager {
     const intervalMs = 1000 / config.connectionRate;
 
     return new Promise((resolve) => {
-      this.progressiveConnectionTimer = setInterval(() => {
-        if (createdCount >= config.numConnections || this.isShuttingDown) {
+      this.progressiveConnectionTimer = setInterval(async () => {
+        if (createdCount >= this.calculatedNumConnections || this.isShuttingDown) {
           if (this.progressiveConnectionTimer) {
             clearInterval(this.progressiveConnectionTimer);
             this.progressiveConnectionTimer = null;
@@ -179,13 +238,16 @@ class WebSocketManager {
           return;
         }
 
-        const connection = new WebSocketConnection(config.wsUrl, createdCount + 1);
+        // Pop test data from Redis list if available
+        const testData = this.hasTestData ? await redisClient.popTestData() : null;
+
+        const connection = new WebSocketConnection(config.wsUrl, createdCount + 1, testData);
         this.connections.push(connection);
         connection.connect();
         createdCount++;
 
         if (createdCount % 10 === 0) {
-          logger.info(`Created ${createdCount}/${config.numConnections} connections`);
+          logger.info(`Created ${createdCount}/${this.calculatedNumConnections} connections`);
         }
       }, intervalMs);
     });
@@ -223,6 +285,9 @@ class WebSocketManager {
 
     // Close stats manager
     await statsManager.close();
+
+    // Close Redis client
+    await redisClient.close();
 
     logger.info('WebSocket manager shutdown complete');
   }

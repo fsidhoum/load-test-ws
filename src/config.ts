@@ -22,11 +22,13 @@ export interface Config {
   influxToken: string;
   influxOrg: string;
   influxBucket: string;
+  redisUrl: string;
   logLevel: LogLevel;
   retryDelayMs: number;
   connectionMode: ConnectionMode;
   connectionRate: number;
   runnerId: string;
+  replicas: number;
 }
 
 // Parse and validate environment variables
@@ -55,6 +57,11 @@ function parseEnv(): Config {
   const influxBucket = process.env.INFLUX_BUCKET;
   if (!influxBucket) {
     throw new Error('INFLUX_BUCKET environment variable is required');
+  }
+
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    throw new Error('REDIS_URL environment variable is required');
   }
 
   // Optional environment variables with defaults
@@ -87,6 +94,11 @@ function parseEnv(): Config {
 
   const runnerId = process.env.RUNNER_ID || `runner-${Math.floor(Math.random() * 10000)}`;
 
+  const replicas = parseInt(process.env.REPLICAS || '3', 10);
+  if (isNaN(replicas) || replicas <= 0) {
+    throw new Error('REPLICAS must be a positive number');
+  }
+
   return {
     wsUrl,
     numConnections,
@@ -94,11 +106,13 @@ function parseEnv(): Config {
     influxToken,
     influxOrg,
     influxBucket,
+    redisUrl,
     logLevel,
     retryDelayMs,
     connectionMode,
     connectionRate,
-    runnerId
+    runnerId,
+    replicas
   };
 }
 

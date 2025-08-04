@@ -16,6 +16,7 @@ function printBanner(): void {
   logger.info(`InfluxDB URL: ${config.influxUrl}`);
   logger.info(`InfluxDB Organization: ${config.influxOrg}`);
   logger.info(`InfluxDB Bucket: ${config.influxBucket}`);
+  logger.info(`Redis URL: ${config.redisUrl}`);
   logger.info(`Log level: ${config.logLevel}`);
   logger.info(`Retry delay: ${config.retryDelayMs}ms`);
   logger.info('='.repeat(60));

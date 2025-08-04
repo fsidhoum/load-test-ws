@@ -8,7 +8,8 @@
     "prestart": "pnpm run build",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "test": "jest"
+    "test": "jest",
+    "data-loader": "ts-node src/data-loader/index.ts"
   },
   "keywords": [
     "websocket",
@@ -22,11 +23,15 @@
     "@influxdata/influxdb-client": "^1.33.2",
     "ws": "^8.14.2",
     "winston": "^3.11.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "csv-parser": "^3.0.0",
+    "ioredis": "^5.3.2",
+    "fs-extra": "^11.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@types/ws": "^8.5.10",
+    "@types/fs-extra": "^11.0.4",
     "typescript": "^5.3.2",
     "ts-node": "^10.9.1",
     "jest": "^29.7.0",
