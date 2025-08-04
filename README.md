@@ -22,10 +22,14 @@ A Node.js application designed to test WebSocket server capacity by simulating a
 
 ## Architecture
 
-The application consists of two main services:
+The application consists of two main modules:
 
-1. **Data Loader Service**: Reads test data from CSV files, filters it based on level, and stores it in Redis.
-2. **WebSocket Runner Service**: Establishes WebSocket connections using dynamic URLs with variables from the test data.
+1. **Data Loader Module**: Reads test data from CSV files, filters it based on level, and stores it in Redis.
+2. **Runner Module**: Establishes WebSocket connections using dynamic URLs with variables from the test data.
+
+The codebase is organized into two separate directories:
+- `src/data-loader/`: Contains all code related to the data loader module
+- `src/runner/`: Contains all code related to the WebSocket runner module
 
 ## Configuration
 
@@ -162,7 +166,12 @@ pnpm run data-loader
    export INFLUX_BUCKET=connection-stats
    export REDIS_URL=redis://localhost:6379
    ```
-4. Run the application:
+4. Run the runner module:
+   ```
+   pnpm run runner
+   ```
+   
+   Or use the start script (which builds first):
    ```
    pnpm start
    ```

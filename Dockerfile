@@ -43,7 +43,7 @@ COPY --from=builder /app/dist ./dist
 ENV NODE_ENV=production
 
 # Run the application
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/runner/index.js"]
 
 # Health check - just check if the process is running
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 CMD ps aux | grep node | grep -v grep || exit 1

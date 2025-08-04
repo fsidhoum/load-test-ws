@@ -2,14 +2,15 @@
   "name": "ws-load-tester",
   "version": "1.0.0",
   "description": "WebSocket load testing tool for Kubernetes environments",
-  "main": "dist/index.js",
+  "main": "dist/runner/index.js",
   "scripts": {
     "build": "tsc",
     "prestart": "pnpm run build",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "start": "node dist/runner/index.js",
+    "dev": "ts-node src/runner/index.ts",
     "test": "jest",
-    "data-loader": "ts-node src/data-loader/index.ts"
+    "data-loader": "ts-node src/data-loader/index.ts",
+    "runner": "ts-node src/runner/index.ts"
   },
   "keywords": [
     "websocket",
