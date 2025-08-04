@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  influxdb:
+    image: influxdb:2.7-alpine
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
+      - DOCKER_INFLUXDB_INIT_ORG=ws-load-tester
+      - DOCKER_INFLUXDB_INIT_BUCKET=connection-stats
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-auth-token
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--spider", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  ws-load-tester:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - WS_URL=${WS_URL:-wss://echo.websocket.events}
+      - NUM_CONNECTIONS=${NUM_CONNECTIONS:-100}
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_TOKEN=my-super-secret-auth-token
+      - INFLUX_ORG=ws-load-tester
+      - INFLUX_BUCKET=connection-stats
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - RETRY_DELAY_MS=${RETRY_DELAY_MS:-5000}
+      - CONNECTION_MODE=${CONNECTION_MODE:-instant}
+      - CONNECTION_RATE=${CONNECTION_RATE:-10}
+      # RUNNER_ID will be set to the container hostname automatically
+    depends_on:
+      - influxdb
+    deploy:
+      replicas: ${REPLICAS:-3}
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    restart: unless-stopped
+
+volumes:
+  influxdb-data:

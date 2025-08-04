@@ -1,0 +1,49 @@
+FROM node:22-alpine as builder
+
+# Create app directory
+WORKDIR /app
+
+# Copy package.json and pnpm-lock.yaml
+COPY package*.json ./
+COPY pnpm-lock.yaml ./
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Install dependencies
+RUN pnpm install
+
+# Copy source code
+COPY tsconfig.json ./
+COPY src ./src
+
+# Build the application
+RUN pnpm run build
+
+# Production stage
+FROM node:22-alpine
+
+# Create app directory
+WORKDIR /app
+
+# Copy package.json and pnpm-lock.yaml
+COPY package*.json ./
+COPY pnpm-lock.yaml ./
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Install production dependencies only
+RUN pnpm install --prod
+
+# Copy built application from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Set environment variables
+ENV NODE_ENV=production
+
+# Run the application
+CMD ["node", "dist/index.js"]
+
+# Health check - just check if the process is running
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 CMD ps aux | grep node | grep -v grep || exit 1
