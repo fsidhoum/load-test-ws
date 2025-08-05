@@ -1,0 +1,434 @@
+[
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Dashboard",
+    "metadata": {
+      "name": "romantic-swanson-f3a001"
+    },
+    "spec": {
+      "charts": [
+        {
+          "colors": [
+            {
+              "id": "base",
+              "name": "white",
+              "type": "text",
+              "hex": "#ffffff"
+            }
+          ],
+          "decimalPlaces": 0,
+          "height": 4,
+          "kind": "Single_Stat",
+          "name": "Total Active Connections",
+          "queries": [
+            {
+              "query": "from(bucket: \"connection-stats\")\n  |> range(start: -1m)\n  |> filter(fn: (r) => r._measurement == \"websocket_connections\" and r.event_type == \"summary\")\n  |> filter(fn: (r) => r._field == \"current_open\")\n  |> last()\n  |> group()\n  |> sum()"
+            }
+          ],
+          "staticLegend": {},
+          "width": 4
+        },
+        {
+          "axes": [
+            {
+              "base": "10",
+              "name": "x",
+              "scale": "linear"
+            },
+            {
+              "base": "10",
+              "name": "y",
+              "scale": "linear"
+            }
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {
+              "id": "57F7sH3gOPNvYGXGjUUCz",
+              "name": "Nineteen Eighty Four",
+              "type": "scale",
+              "hex": "#31C0F6"
+            },
+            {
+              "id": "KEtt8QE6OzTzZtRGneHi4",
+              "name": "Nineteen Eighty Four",
+              "type": "scale",
+              "hex": "#A500A5"
+            },
+            {
+              "id": "nBZ7QHfYe0Q00QqFdEZsX",
+              "name": "Nineteen Eighty Four",
+              "type": "scale",
+              "hex": "#FF7E27"
+            }
+          ],
+          "geom": "monotoneX",
+          "height": 4,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Active Connections Over Time",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"connection-stats\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"websocket_connections\" and r.event_type == \"summary\")\n  |> filter(fn: (r) => r._field == \"current_open\")\n  |> aggregateWindow(every: 10s, fn: last)\n  |> group(columns: [\"runnerId\"])"
+            }
+          ],
+          "shade": true,
+          "staticLegend": {
+            "colorizeRows": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "widthRatio": 1
+          },
+          "width": 6,
+          "widthRatio": 1,
+          "xCol": "_time",
+          "yCol": "_value",
+          "yPos": 4
+        },
+        {
+          "colors": [
+            {
+              "id": "0",
+              "name": "curacao",
+              "type": "min",
+              "hex": "#F95F53"
+            },
+            {
+              "id": "8YwRU9zZNnm9A9DnQgNDR",
+              "name": "tiger",
+              "type": "threshold",
+              "hex": "#F48D38",
+              "value": 20
+            },
+            {
+              "id": "EnTaT8Xw8XatQkUxe40b3",
+              "name": "thunder",
+              "type": "threshold",
+              "hex": "#FFD255",
+              "value": 50
+            },
+            {
+              "id": "3H9aZapadjCEcjcBMTqRG",
+              "name": "rainforest",
+              "type": "threshold",
+              "hex": "#4ED8A0",
+              "value": 80
+            },
+            {
+              "id": "1",
+              "name": "rainforest",
+              "type": "max",
+              "hex": "#4ED8A0",
+              "value": 100
+            }
+          ],
+          "decimalPlaces": 0,
+          "height": 4,
+          "kind": "Gauge",
+          "name": "Connection Success Rate",
+          "queries": [
+            {
+              "query": "from(bucket: \"connection-stats\")\n  |> range(start: -1m)\n  |> filter(fn: (r) => r._measurement == \"websocket_connections\" and r.event_type == \"summary\")\n  |> filter(fn: (r) => r._field == \"success_rate\")\n  |> last()\n  |> mean()"
+            }
+          ],
+          "staticLegend": {},
+          "suffix": "%",
+          "width": 4,
+          "yPos": 8
+        },
+        {
+          "axes": [
+            {
+              "base": "10",
+              "name": "x",
+              "scale": "linear"
+            },
+            {
+              "base": "10",
+              "name": "y",
+              "scale": "linear"
+            }
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {
+              "id": "57F7sH3gOPNvYGXGjUUCz",
+              "name": "Nineteen Eighty Four",
+              "type": "scale",
+              "hex": "#31C0F6"
+            },
+            {
+              "id": "KEtt8QE6OzTzZtRGneHi4",
+              "name": "Nineteen Eighty Four",
+              "type": "scale",
+              "hex": "#A500A5"
+            },
+            {
+              "id": "nBZ7QHfYe0Q00QqFdEZsX",
+              "name": "Nineteen Eighty Four",
+              "type": "scale",
+              "hex": "#FF7E27"
+            }
+          ],
+          "geom": "monotoneX",
+          "height": 4,
+          "heightRatio": 0.29,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Connection Events Over Time",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"connection-stats\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"websocket_connections\")\n  |> filter(fn: (r) => r.event_type == \"attempt\" or r.event_type == \"open\" or r.event_type == \"close\" or r.event_type == \"error\")\n  |> filter(fn: (r) => r._field == \"count\")\n  |> aggregateWindow(every: 10s, fn: sum)\n  |> group(columns: [\"event_type\"])"
+            }
+          ],
+          "shade": true,
+          "show": true,
+          "staticLegend": {
+            "colorizeRows": true,
+            "heightRatio": 0.29,
+            "show": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "valueAxis": "y",
+            "widthRatio": 1
+          },
+          "valueAxis": "y",
+          "width": 12,
+          "widthRatio": 1,
+          "xCol": "_time",
+          "yCol": "_value",
+          "yPos": 12
+        },
+        {
+          "axes": [
+            {
+              "base": "10",
+              "name": "x",
+              "scale": "linear"
+            },
+            {
+              "base": "10",
+              "name": "y",
+              "scale": "linear"
+            }
+          ],
+          "colorizeRows": true,
+          "colors": [
+            {
+              "id": "5L-uPRjDP-Q_O4fdKWfsj",
+              "name": "T-Max 400 Film",
+              "type": "scale",
+              "hex": "#F6F6F8"
+            },
+            {
+              "id": "1GEHEM3l9HY7kSOlzk1ca",
+              "name": "T-Max 400 Film",
+              "type": "scale",
+              "hex": "#A4A8B6"
+            },
+            {
+              "id": "U0FlZR92XBeCqk6geGk93",
+              "name": "T-Max 400 Film",
+              "type": "scale",
+              "hex": "#545667"
+            }
+          ],
+          "geom": "monotoneX",
+          "height": 4,
+          "hoverDimension": "auto",
+          "kind": "Xy",
+          "legendColorizeRows": true,
+          "legendOpacity": 1,
+          "legendOrientationThreshold": 100000000,
+          "name": "Total Active Connections Over Time",
+          "opacity": 1,
+          "orientationThreshold": 100000000,
+          "position": "overlaid",
+          "queries": [
+            {
+              "query": "from(bucket: \"connection-stats\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"websocket_connections\")\n  |> filter(fn: (r) => r[\"_field\"] == \"current_open\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> group(columns: [\"_time\"])             // regroupe les points pour chaque timestamp\n  |> sum(column: \"_value\")                 // somme des valeurs à chaque _time\n  |> map(fn: (r) => ({                     // remappe pour créer une série propre\n      _time: r._time,\n      _value: r._value,\n      _field: \"sum_current_open\",\n      _measurement: \"websocket_connections\"\n  }))\n  |> group(columns: [\"_field\"])            // force une série unique identifiable\n  |> yield(name: \"sum\")"
+            }
+          ],
+          "shade": true,
+          "staticLegend": {
+            "colorizeRows": true,
+            "opacity": 1,
+            "orientationThreshold": 100000000,
+            "widthRatio": 1
+          },
+          "width": 8,
+          "widthRatio": 1,
+          "xCol": "_time",
+          "xPos": 4,
+          "yCol": "_value"
+        },
+        {
+          "colors": [
+            {
+              "id": "base",
+              "name": "viridian",
+              "type": "text",
+              "hex": "#32B08C"
+            },
+            {
+              "id": "Gneg-8YIxH4exrQ8RWzf4",
+              "name": "pineapple",
+              "type": "text",
+              "hex": "#FFB94A",
+              "value": 1
+            },
+            {
+              "id": "zsBHIPYDVERWyF9pi3ZVt",
+              "name": "tiger",
+              "type": "text",
+              "hex": "#F48D38",
+              "value": 10
+            },
+            {
+              "id": "5Z0GRikiNdYBt-dIdM_IY",
+              "name": "curacao",
+              "type": "text",
+              "hex": "#F95F53",
+              "value": 100
+            }
+          ],
+          "decimalPlaces": 0,
+          "height": 4,
+          "kind": "Single_Stat",
+          "name": "Connection Errors",
+          "queries": [
+            {
+              "query": "from(bucket: \"connection-stats\")\n  |> range(start: -1m)\n  |> filter(fn: (r) => r._measurement == \"websocket_connections\" and r.event_type == \"summary\")\n  |> filter(fn: (r) => r._field == \"total_errors\")\n  |> last()\n  |> sum()"
+            }
+          ],
+          "staticLegend": {},
+          "width": 4,
+          "xPos": 4,
+          "yPos": 8
+        },
+        {
+          "colors": [
+            {
+              "id": "base",
+              "name": "white",
+              "type": "text",
+              "hex": "#ffffff"
+            }
+          ],
+          "fieldOptions": [
+            {
+              "displayName": "runnerId",
+              "fieldName": "runnerId"
+            },
+            {
+              "displayName": "_start",
+              "fieldName": "_start"
+            },
+            {
+              "displayName": "_stop",
+              "fieldName": "_stop"
+            },
+            {
+              "displayName": "_time",
+              "fieldName": "_time",
+              "visible": true
+            },
+            {
+              "displayName": "_value",
+              "fieldName": "_value",
+              "visible": true
+            },
+            {
+              "displayName": "_field",
+              "fieldName": "_field",
+              "visible": true
+            },
+            {
+              "displayName": "_measurement",
+              "fieldName": "_measurement",
+              "visible": true
+            },
+            {
+              "displayName": "event_type",
+              "fieldName": "event_type"
+            }
+          ],
+          "height": 4,
+          "kind": "Table",
+          "name": "Active Connections by Runner",
+          "queries": [
+            {
+              "query": "from(bucket: \"connection-stats\")\n  |> range(start: -1m)\n  |> filter(fn: (r) => r._measurement == \"websocket_connections\" and r.event_type == \"summary\")\n  |> filter(fn: (r) => r._field == \"current_open\")\n  |> last()\n  |> group(columns: [\"runnerId\"])"
+            }
+          ],
+          "staticLegend": {},
+          "tableOptions": {
+            "verticalTimeAxis": true
+          },
+          "timeFormat": "YYYY-MM-DD HH:mm:ss",
+          "width": 6,
+          "xPos": 6,
+          "yPos": 4
+        },
+        {
+          "colors": [
+            {
+              "id": "base",
+              "name": "laser",
+              "type": "text",
+              "hex": "#00C9FF"
+            },
+            {
+              "id": "SWK2vdJchPj64Nu-TMT5u",
+              "name": "rainforest",
+              "type": "text",
+              "hex": "#4ED8A0"
+            },
+            {
+              "id": "bUVuGzeDZZ6SKVO9SktJN",
+              "name": "thunder",
+              "type": "text",
+              "hex": "#FFD255",
+              "value": 1000
+            },
+            {
+              "id": "kuO4jyRLjh-8n3mHeCO0X",
+              "name": "fire",
+              "type": "text",
+              "hex": "#DC4E58",
+              "value": 5000
+            }
+          ],
+          "decimalPlaces": 0,
+          "height": 4,
+          "kind": "Single_Stat",
+          "name": "Average Connection Time (ms)",
+          "queries": [
+            {
+              "query": "from(bucket: \"connection-stats\")\n  |> range(start: -1m)\n  |> filter(fn: (r) => r._measurement == \"websocket_connections\" and r.event_type == \"summary\")\n  |> filter(fn: (r) => r._field == \"average_connect_time\")\n  |> last()\n  |> mean()"
+            }
+          ],
+          "staticLegend": {},
+          "suffix": "ms",
+          "width": 4,
+          "xPos": 8,
+          "yPos": 8
+        }
+      ],
+      "description": "Dashboard for monitoring WebSocket connection statistics across all runners",
+      "name": "WebSocket Connections"
+    }
+  }
+]

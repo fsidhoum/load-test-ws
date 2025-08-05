@@ -159,7 +159,7 @@ pnpm run data-loader
    ```
 3. Set the required environment variables for the runner:
    ```
-   export WS_URL="ws://your-websocket-server.com/ws?id=\${id}&token=\${token}"
+   export WS_URL="ws://your-websocket-server.com/ws?id=@{id}&token=@{token}"
    export INFLUX_URL=http://localhost:8086
    export INFLUX_TOKEN=your-influxdb-token
    export INFLUX_ORG=your-organization
@@ -217,7 +217,7 @@ level,id,token
 EOF
 
 # Set the WebSocket server URL with variables
-export WS_URL="ws://your-websocket-server.com/ws?id=\${id}&token=\${token}"
+export WS_URL="ws://your-websocket-server.com/ws?id=@{id}&token=@{token}"
 
 # Set the path to the CSV file
 export CSV_PATH=./test-data
@@ -278,9 +278,31 @@ To use your own CSV data:
 
 ## Monitoring
 
-The application logs statistics to the console and to InfluxDB. You can monitor the data using the InfluxDB UI or by querying the API.
+The application logs statistics to the console and to InfluxDB. You can monitor the data using the pre-configured dashboard, the InfluxDB UI, or by querying the API.
+
+### Using the Pre-configured Dashboard
+
+A comprehensive dashboard is automatically provisioned when you deploy the stack using docker-compose. This dashboard provides real-time visibility into your WebSocket connections:
+
+1. Access the InfluxDB UI at `http://localhost:8086` (or your InfluxDB server address)
+2. Log in with the credentials specified in the docker-compose.yml file (default: admin/adminpassword)
+3. Navigate to "Dashboards" in the left sidebar
+4. Select the "WebSocket Connection Statistics" dashboard
+
+The dashboard includes the following visualizations:
+
+- **Total Active Connections**: Shows the total number of active connections across all runners
+- **Active Connections by Runner**: Breaks down active connections by individual runner
+- **Active Connections Over Time**: Displays how connections change over time for each runner
+- **Total Active Connections Over Time**: Shows the aggregate connection count across all runners
+- **Connection Success Rate**: Displays the percentage of successful connections
+- **Connection Errors**: Shows the total number of connection errors
+- **Average Connection Time**: Displays the average time to establish a connection
+- **Connection Events Over Time**: Shows connection events (attempts, opens, closes, errors) over time
 
 ### Using the InfluxDB UI
+
+You can also explore the data directly using the Data Explorer:
 
 1. Access the InfluxDB UI at `http://localhost:8086` (or your InfluxDB server address)
 2. Navigate to "Data Explorer"
