@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Copy package.json and pnpm-lock.yaml
 COPY package*.json ./
-COPY pnpm-lock.yaml ./
+COPY ../pnpm-lock.yaml ./
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -14,8 +14,8 @@ RUN npm install -g pnpm
 RUN pnpm install
 
 # Copy source code
-COPY tsconfig.json ./
-COPY src ./src
+COPY ../tsconfig.json ./
+COPY ../src ./src
 
 # Build the application
 RUN pnpm run build
@@ -28,7 +28,7 @@ WORKDIR /app
 
 # Copy package.json and pnpm-lock.yaml
 COPY package*.json ./
-COPY pnpm-lock.yaml ./
+COPY ../pnpm-lock.yaml ./
 
 # Install pnpm
 RUN npm install -g pnpm

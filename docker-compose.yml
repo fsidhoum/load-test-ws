@@ -11,7 +11,7 @@ services:
       - DOCKER_INFLUXDB_INIT_MODE=setup
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
       - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
-      - DOCKER_INFLUXDB_INIT_ORG=ws-load-tester
+      - DOCKER_INFLUXDB_INIT_ORG=runners
       - DOCKER_INFLUXDB_INIT_BUCKET=connection-stats
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-auth-token
     healthcheck:
@@ -39,7 +39,7 @@ services:
   data-loader:
     build:
       context: .
-      dockerfile: Dockerfile.data-loader
+      dockerfile: docker/Dockerfile.data-loader
     volumes:
       - ${CSV_PATH:-./data}:/app/data
     environment:
@@ -51,16 +51,16 @@ services:
       - redis
     restart: on-failure
 
-  ws-load-tester:
+  runners:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile.runners
     environment:
       - WS_URL=${WS_URL:-wss://echo.websocket.events}
       - NUM_CONNECTIONS=${NUM_CONNECTIONS:-100}
       - INFLUX_URL=http://influxdb:8086
       - INFLUX_TOKEN=my-super-secret-auth-token
-      - INFLUX_ORG=ws-load-tester
+      - INFLUX_ORG=runners
       - INFLUX_BUCKET=connection-stats
       - REDIS_URL=redis://redis:6379
       - LOG_LEVEL=${LOG_LEVEL:-info}
@@ -77,7 +77,7 @@ services:
       replicas: ${REPLICAS:-3}
       resources:
         limits:
-          cpus: '0.5'
+          cpus: '1'
           memory: 512M
     restart: unless-stopped
 
