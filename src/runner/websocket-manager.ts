@@ -218,11 +218,6 @@ class WebSocketManager {
       const connection = new WebSocketConnection(config.wsUrl, i + 1, testData);
       this.connections.push(connection);
       connection.connect();
-
-      // Small delay to prevent overwhelming the system
-      if (i > 0 && i % 100 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
     }
 
     logger.info(`Created ${this.connections.length} connections`);
