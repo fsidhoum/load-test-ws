@@ -14,6 +14,7 @@ class WebSocketConnection {
   private isClosing: boolean = false;
   private testData: TestDataRow | null = null;
   private urlTemplate: string;
+  private connectionClosedCalled: boolean = false;
 
   constructor(urlTemplate: string, id: number, testData: TestDataRow | null = null) {
     this.urlTemplate = urlTemplate;
@@ -56,6 +57,7 @@ class WebSocketConnection {
     }
 
     this.isClosing = false;
+    this.connectionClosedCalled = false;
     this.connectStartTime = Date.now();
     statsManager.connectionAttempted();
 
@@ -86,7 +88,14 @@ class WebSocketConnection {
   // Handle connection close
   private handleClose(code: number, reason: string): void {
     logger.info(`Connection ${this.id}: Closed with code ${code}, reason: ${reason || 'No reason provided'}`);
-    statsManager.connectionClosed();
+
+    // Only call connectionClosed once per connection lifecycle
+    if (!this.connectionClosedCalled) {
+      statsManager.connectionClosed();
+      this.connectionClosedCalled = true;
+    } else {
+      logger.debug(`Connection ${this.id}: Ignoring duplicate close event`);
+    }
 
     // Clean up
     this.ws = null;

@@ -93,7 +93,12 @@ class StatsManager {
 
   // Connection closed
   public connectionClosed(): void {
-    this.stats.currentOpen--;
+    // Ensure currentOpen never goes below zero
+    if (this.stats.currentOpen > 0) {
+      this.stats.currentOpen--;
+    } else {
+      logger.warn('Attempted to decrement currentOpen below zero. Keeping at zero.');
+    }
     this.stats.totalClosed++;
     this.updateSuccessRate();
 
