@@ -15,6 +15,11 @@ export enum ConnectionMode {
   PROGRESSIVE = 'progressive'
 }
 
+export enum TestMode {
+  WEBSOCKET = 'websocket',
+  HTTP = 'http'
+}
+
 export interface Config {
   wsUrl: string;
   numConnections: number;
@@ -29,6 +34,9 @@ export interface Config {
   connectionRate: number;
   runnerId: string;
   replicas: number;
+  testMode: TestMode;
+  httpUrl: string;
+  httpMethod: string;
 }
 
 // Parse and validate environment variables
@@ -99,6 +107,21 @@ function parseEnv(): Config {
     throw new Error('REPLICAS must be a positive number');
   }
 
+  // Test mode configuration
+  const testModeStr = process.env.TEST_MODE || 'websocket';
+  if (!Object.values(TestMode).includes(testModeStr as TestMode)) {
+    throw new Error(`TEST_MODE must be one of: ${Object.values(TestMode).join(', ')}`);
+  }
+  const testMode = testModeStr as TestMode;
+
+  // HTTP configuration (only required if testMode is HTTP)
+  const httpUrl = process.env.HTTP_URL || '';
+  if (testMode === TestMode.HTTP && !httpUrl) {
+    throw new Error('HTTP_URL environment variable is required when TEST_MODE is http');
+  }
+
+  const httpMethod = process.env.HTTP_METHOD || 'GET';
+
   return {
     wsUrl,
     numConnections,
@@ -112,7 +135,10 @@ function parseEnv(): Config {
     connectionMode,
     connectionRate,
     runnerId,
-    replicas
+    replicas,
+    testMode,
+    httpUrl,
+    httpMethod
   };
 }
 

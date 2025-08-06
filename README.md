@@ -1,10 +1,12 @@
-# WebSocket Load Tester
+# Load Tester for WebSocket and HTTP
 
-A Node.js application designed to test WebSocket server capacity by simulating a large number of simultaneous connections. This tool is particularly useful for testing WebSocket servers deployed in Kubernetes clusters.
+A Node.js application designed to test WebSocket and HTTP server capacity by simulating a large number of simultaneous connections or requests. This tool is particularly useful for testing servers deployed in Kubernetes clusters.
 
 ## Features
 
-- Simulates multiple WebSocket connections from a single container
+- Supports two test modes: WebSocket and HTTP
+- Simulates multiple WebSocket connections or HTTP requests from a single container
+- Supports all common HTTP methods (GET, POST, PUT, DELETE, etc.)
 - Supports deploying multiple replicas via Docker Compose or Kubernetes
 - Configurable connection modes: instant or progressive
 - Tracks and reports connection statistics to InfluxDB time-series database
@@ -33,14 +35,17 @@ The codebase is organized into two separate directories:
 
 ## Configuration
 
-### WebSocket Runner Service
+### Runner Service
 
-The WebSocket runner service is configured via environment variables:
+The runner service is configured via environment variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `WS_URL` | WebSocket server URL to test (can include variables like `${id}`) | *Required* |
-| `NUM_CONNECTIONS` | Number of WebSocket connections to establish (only used when no CSV data is loaded) | 100 |
+| `TEST_MODE` | Test mode to use (websocket or http) | websocket |
+| `WS_URL` | WebSocket server URL to test (can include variables like `@{id}`) | *Required when TEST_MODE=websocket* |
+| `HTTP_URL` | HTTP server URL to test (can include variables like `@{id}`) | *Required when TEST_MODE=http* |
+| `HTTP_METHOD` | HTTP method to use (GET, POST, PUT, DELETE, etc.) | GET |
+| `NUM_CONNECTIONS` | Number of connections/requests to establish (only used when no CSV data is loaded) | 100 |
 | `REPLICAS` | Number of replicas of the service (used to calculate connections when CSV data is loaded) | 3 |
 | `INFLUX_URL` | InfluxDB server URL | *Required* |
 | `INFLUX_TOKEN` | InfluxDB authentication token | *Required* |
@@ -204,6 +209,8 @@ docker run -e WS_URL=ws://your-websocket-server.com/ws \
 
 The included docker-compose.yml file allows you to deploy all services together:
 
+### WebSocket Testing Example
+
 ```bash
 # Create a directory for test data
 mkdir -p test-data
@@ -215,6 +222,9 @@ level,id,token
 2,def456,token2
 3,ghi789,token3
 EOF
+
+# Set the test mode to WebSocket
+export TEST_MODE=websocket
 
 # Set the WebSocket server URL with variables
 export WS_URL="ws://your-websocket-server.com/ws?id=@{id}&token=@{token}"
@@ -229,6 +239,48 @@ export CSV_FILE=test-data.csv
 export DATA_LEVEL=2
 
 # Set the number of connections per container
+export NUM_CONNECTIONS=500
+
+# Set the number of replicas
+export REPLICAS=5
+
+# Start the services
+docker-compose up -d
+```
+
+### HTTP Testing Example
+
+```bash
+# Create a directory for test data
+mkdir -p test-data
+
+# Create a CSV file
+cat > test-data/test-data.csv << EOF
+level,id,token,payload
+1,abc123,token1,{"data":"test1"}
+2,def456,token2,{"data":"test2"}
+3,ghi789,token3,{"data":"test3"}
+EOF
+
+# Set the test mode to HTTP
+export TEST_MODE=http
+
+# Set the HTTP URL with variables
+export HTTP_URL="https://your-api-server.com/api/resource/@{id}?token=@{token}"
+
+# Set the HTTP method
+export HTTP_METHOD=POST
+
+# Set the path to the CSV file
+export CSV_PATH=./test-data
+
+# Set the CSV filename
+export CSV_FILE=test-data.csv
+
+# Set the maximum level for filtering
+export DATA_LEVEL=2
+
+# Set the number of requests per container
 export NUM_CONNECTIONS=500
 
 # Set the number of replicas

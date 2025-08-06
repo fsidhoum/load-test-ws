@@ -57,7 +57,10 @@ services:
       context: .
       dockerfile: docker/Dockerfile.runners
     environment:
+      - TEST_MODE=${TEST_MODE:-websocket}
       - WS_URL=${WS_URL:-wss://echo.websocket.events}
+      - HTTP_URL=${HTTP_URL:-https://httpbin.org/anything}
+      - HTTP_METHOD=${HTTP_METHOD:-GET}
       - NUM_CONNECTIONS=${NUM_CONNECTIONS:-100}
       - INFLUX_URL=http://influxdb:8086
       - INFLUX_TOKEN=my-super-secret-auth-token
