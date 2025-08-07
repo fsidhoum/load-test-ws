@@ -1,9 +1,9 @@
 import { InfluxDB, Point, WriteApi } from '@influxdata/influxdb-client';
-import { config } from './config';
+import { config, TestMode } from './config';
 import logger from './logger';
 
-// Statistics interface
-export interface ConnectionStats {
+// WebSocket Statistics interface
+export interface WebSocketStats {
   totalAttempted: number;
   currentOpen: number;
   totalClosed: number;
@@ -13,22 +13,51 @@ export interface ConnectionStats {
   lastUpdated: string;
 }
 
+// HTTP Statistics interface
+export interface HttpStats {
+  totalAttempted: number;
+  totalSuccessful: number;
+  totalErrors: number;
+  averageResponseTime: number;
+  successRate: number;
+  lastUpdated: string;
+}
+
+// Combined statistics interface for backward compatibility
+export interface ConnectionStats extends WebSocketStats {}
+
 class StatsManager {
   private influxDB: InfluxDB;
   private writeApi: WriteApi;
-  private stats: ConnectionStats;
+  private wsStats: WebSocketStats;
+  private httpStats: HttpStats;
   private measurementName: string;
   private connectTimes: number[] = [];
   private updateInterval: NodeJS.Timeout | null = null;
+  private isHttpMode: boolean;
 
   constructor() {
-    this.measurementName = 'websocket_connections';
-    this.stats = {
+    // Set measurement name based on test mode
+    this.isHttpMode = config.testMode === TestMode.HTTP;
+    this.measurementName = this.isHttpMode ? 'http_connections' : 'websocket_connections';
+
+    // Initialize WebSocket stats
+    this.wsStats = {
       totalAttempted: 0,
       currentOpen: 0,
       totalClosed: 0,
       totalErrors: 0,
       averageConnectTime: 0,
+      successRate: 0,
+      lastUpdated: new Date().toISOString()
+    };
+
+    // Initialize HTTP stats
+    this.httpStats = {
+      totalAttempted: 0,
+      totalSuccessful: 0,
+      totalErrors: 0,
+      averageResponseTime: 0,
       successRate: 0,
       lastUpdated: new Date().toISOString()
     };
@@ -63,7 +92,11 @@ class StatsManager {
 
   // Start connection attempt
   public connectionAttempted(): void {
-    this.stats.totalAttempted++;
+    if (this.isHttpMode) {
+      this.httpStats.totalAttempted++;
+    } else {
+      this.wsStats.totalAttempted++;
+    }
 
     // Write a point for connection attempt
     const point = new Point(this.measurementName)
@@ -76,10 +109,19 @@ class StatsManager {
 
   // Connection successfully opened
   public connectionOpened(connectTime: number): void {
-    this.stats.currentOpen++;
-    this.connectTimes.push(connectTime);
-    this.updateAverageConnectTime();
-    this.updateSuccessRate();
+    if (this.isHttpMode) {
+      // For HTTP, each successful connection is counted
+      this.httpStats.totalSuccessful++;
+      this.connectTimes.push(connectTime);
+      this.updateAverageResponseTime();
+      this.updateHttpSuccessRate();
+    } else {
+      // For WebSocket, track currently open connections
+      this.wsStats.currentOpen++;
+      this.connectTimes.push(connectTime);
+      this.updateAverageConnectTime();
+      this.updateWsSuccessRate();
+    }
 
     // Write a point for connection opened
     const point = new Point(this.measurementName)
@@ -93,14 +135,20 @@ class StatsManager {
 
   // Connection closed
   public connectionClosed(): void {
-    // Ensure currentOpen never goes below zero
-    if (this.stats.currentOpen > 0) {
-      this.stats.currentOpen--;
+    if (this.isHttpMode) {
+      // For HTTP, we don't need to track closed connections separately
+      // as we're counting successful connections directly
     } else {
-      logger.warn('Attempted to decrement currentOpen below zero. Keeping at zero.');
+      // For WebSocket, track closed connections
+      // Ensure currentOpen never goes below zero
+      if (this.wsStats.currentOpen > 0) {
+        this.wsStats.currentOpen--;
+      } else {
+        logger.warn('Attempted to decrement currentOpen below zero. Keeping at zero.');
+      }
+      this.wsStats.totalClosed++;
+      this.updateWsSuccessRate();
     }
-    this.stats.totalClosed++;
-    this.updateSuccessRate();
 
     // Write a point for connection closed
     const point = new Point(this.measurementName)
@@ -113,8 +161,13 @@ class StatsManager {
 
   // Connection error
   public connectionError(): void {
-    this.stats.totalErrors++;
-    this.updateSuccessRate();
+    if (this.isHttpMode) {
+      this.httpStats.totalErrors++;
+      this.updateHttpSuccessRate();
+    } else {
+      this.wsStats.totalErrors++;
+      this.updateWsSuccessRate();
+    }
 
     // Write a point for connection error
     const point = new Point(this.measurementName)
@@ -125,12 +178,12 @@ class StatsManager {
     this.updateStats();
   }
 
-  // Calculate average connection time
+  // Calculate average connection time for WebSocket
   private updateAverageConnectTime(): void {
     if (this.connectTimes.length === 0) return;
 
     const sum = this.connectTimes.reduce((acc, time) => acc + time, 0);
-    this.stats.averageConnectTime = sum / this.connectTimes.length;
+    this.wsStats.averageConnectTime = sum / this.connectTimes.length;
 
     // Limit the array size to prevent memory issues
     if (this.connectTimes.length > 1000) {
@@ -138,28 +191,69 @@ class StatsManager {
     }
   }
 
-  // Calculate success rate
-  private updateSuccessRate(): void {
-    if (this.stats.totalAttempted === 0) return;
+  // Calculate average response time for HTTP
+  private updateAverageResponseTime(): void {
+    if (this.connectTimes.length === 0) return;
 
-    const successfulConnections = this.stats.currentOpen + this.stats.totalClosed;
-    this.stats.successRate = (successfulConnections / this.stats.totalAttempted) * 100;
+    const sum = this.connectTimes.reduce((acc, time) => acc + time, 0);
+    this.httpStats.averageResponseTime = sum / this.connectTimes.length;
+
+    // Limit the array size to prevent memory issues
+    if (this.connectTimes.length > 1000) {
+      this.connectTimes = this.connectTimes.slice(-1000);
+    }
+  }
+
+  // Calculate success rate for WebSocket
+  private updateWsSuccessRate(): void {
+    if (this.wsStats.totalAttempted === 0) return;
+
+    const successfulConnections = this.wsStats.currentOpen + this.wsStats.totalClosed;
+    this.wsStats.successRate = (successfulConnections / this.wsStats.totalAttempted) * 100;
+  }
+
+  // Calculate success rate for HTTP
+  private updateHttpSuccessRate(): void {
+    if (this.httpStats.totalAttempted === 0) return;
+
+    this.httpStats.successRate = (this.httpStats.totalSuccessful / this.httpStats.totalAttempted) * 100;
   }
 
   // Update stats in InfluxDB
   private async updateStats(): Promise<void> {
-    this.stats.lastUpdated = new Date().toISOString();
+    const currentTime = new Date().toISOString();
+
+    if (this.isHttpMode) {
+      this.httpStats.lastUpdated = currentTime;
+    } else {
+      this.wsStats.lastUpdated = currentTime;
+    }
 
     try {
-      // Create a point for the current stats summary
-      const point = new Point(this.measurementName)
-        .tag('event_type', 'summary')
-        .intField('total_attempted', this.stats.totalAttempted)
-        .intField('current_open', this.stats.currentOpen)
-        .intField('total_closed', this.stats.totalClosed)
-        .intField('total_errors', this.stats.totalErrors)
-        .floatField('average_connect_time', this.stats.averageConnectTime)
-        .floatField('success_rate', this.stats.successRate);
+      // Create a point for the current stats summary based on mode
+      let point = new Point(this.measurementName).tag('event_type', 'summary');
+
+      if (this.isHttpMode) {
+        // HTTP-specific fields
+        point = point
+          .intField('total_attempted', this.httpStats.totalAttempted)
+          .intField('total_successful', this.httpStats.totalSuccessful)
+          .intField('total_errors', this.httpStats.totalErrors)
+          .floatField('average_response_time', this.httpStats.averageResponseTime)
+          .floatField('success_rate', this.httpStats.successRate);
+
+        // For backward compatibility, also include current_open field
+        point = point.intField('current_open', this.httpStats.totalSuccessful);
+      } else {
+        // WebSocket-specific fields
+        point = point
+          .intField('total_attempted', this.wsStats.totalAttempted)
+          .intField('current_open', this.wsStats.currentOpen)
+          .intField('total_closed', this.wsStats.totalClosed)
+          .intField('total_errors', this.wsStats.totalErrors)
+          .floatField('average_connect_time', this.wsStats.averageConnectTime)
+          .floatField('success_rate', this.wsStats.successRate);
+      }
 
       // Write the point to InfluxDB
       this.writeApi.writePoint(point);
@@ -167,7 +261,11 @@ class StatsManager {
       // Flush the write buffer to ensure data is sent to InfluxDB
       await this.writeApi.flush();
 
-      logger.debug(`Stats updated in InfluxDB: ${JSON.stringify(this.stats)}`);
+      if (this.isHttpMode) {
+        logger.debug(`HTTP stats updated in InfluxDB: ${JSON.stringify(this.httpStats)}`);
+      } else {
+        logger.debug(`WebSocket stats updated in InfluxDB: ${JSON.stringify(this.wsStats)}`);
+      }
     } catch (error) {
       logger.error(`Failed to update stats in InfluxDB: ${(error as Error).message}`);
     }
@@ -197,9 +295,23 @@ class StatsManager {
     }
   }
 
-  // Get current stats
-  public getStats(): ConnectionStats {
-    return { ...this.stats };
+  // Get current stats based on mode
+  public getStats(): ConnectionStats | HttpStats {
+    if (this.isHttpMode) {
+      return { ...this.httpStats };
+    } else {
+      return { ...this.wsStats };
+    }
+  }
+
+  // Get HTTP stats specifically
+  public getHttpStats(): HttpStats {
+    return { ...this.httpStats };
+  }
+
+  // Get WebSocket stats specifically
+  public getWebSocketStats(): WebSocketStats {
+    return { ...this.wsStats };
   }
 }
 

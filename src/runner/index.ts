@@ -45,7 +45,6 @@ async function start(): Promise<void> {
 
     // Start periodic status logging
     const statusInterval = setInterval(() => {
-      const stats = statsManager.getStats();
       const connStats = config.testMode === TestMode.WEBSOCKET
         ? webSocketManager.getConnectionStats()
         : httpManager.getConnectionStats();
@@ -54,12 +53,26 @@ async function start(): Promise<void> {
       logger.info(`Status update - Runner ID: ${config.runnerId}`);
       logger.info(`Test mode: ${config.testMode}`);
       logger.info(`Total connections: ${connStats.total}, Active: ${connStats.active}`);
-      logger.info(`Connection attempts: ${stats.totalAttempted}`);
-      logger.info(`Open connections: ${stats.currentOpen}`);
-      logger.info(`Closed connections: ${stats.totalClosed}`);
-      logger.info(`Connection errors: ${stats.totalErrors}`);
-      logger.info(`Average connect time: ${stats.averageConnectTime.toFixed(2)}ms`);
-      logger.info(`Success rate: ${stats.successRate.toFixed(2)}%`);
+
+      if (config.testMode === TestMode.WEBSOCKET) {
+        // WebSocket specific stats
+        const wsStats = statsManager.getWebSocketStats();
+        logger.info(`Connection attempts: ${wsStats.totalAttempted}`);
+        logger.info(`Open connections: ${wsStats.currentOpen}`);
+        logger.info(`Closed connections: ${wsStats.totalClosed}`);
+        logger.info(`Connection errors: ${wsStats.totalErrors}`);
+        logger.info(`Average connect time: ${wsStats.averageConnectTime.toFixed(2)}ms`);
+        logger.info(`Success rate: ${wsStats.successRate.toFixed(2)}%`);
+      } else {
+        // HTTP specific stats
+        const httpStats = statsManager.getHttpStats();
+        logger.info(`Connection attempts: ${httpStats.totalAttempted}`);
+        logger.info(`Successful connections: ${httpStats.totalSuccessful}`);
+        logger.info(`Connection errors: ${httpStats.totalErrors}`);
+        logger.info(`Average response time: ${httpStats.averageResponseTime.toFixed(2)}ms`);
+        logger.info(`Success rate: ${httpStats.successRate.toFixed(2)}%`);
+      }
+
       logger.info('-'.repeat(40));
     }, 30000); // Log status every 30 seconds
 

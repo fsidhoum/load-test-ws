@@ -118,9 +118,12 @@ class HttpConnection {
       logger.debug(`Connection ${this.id}: Ignoring duplicate close event`);
     }
 
-    // Attempt to reconnect if not intentionally closing
-    if (!this.isClosing) {
+    // Attempt to reconnect only if not intentionally closing AND the connection failed
+    if (!this.isClosing && !this.isConnected()) {
+      logger.info(`Connection ${this.id}: Request failed, scheduling reconnect`);
       this.scheduleReconnect();
+    } else if (!this.isClosing && this.isConnected()) {
+      logger.info(`Connection ${this.id}: Request succeeded, no reconnect needed`);
     }
   }
 
