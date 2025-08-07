@@ -24,7 +24,15 @@ class HttpConnection {
     this.testData = testData;
     this.url = this.replaceUrlVariables(urlTemplate, testData);
     this.id = id;
-    this.axiosInstance = axios.create();
+    this.axiosInstance = axios.create({
+      httpsAgent: new (require('https').Agent)({
+        rejectUnauthorized: config.rejectUnauthorized // Use configuration value for certificate validation
+      })
+    });
+
+    if (!config.rejectUnauthorized) {
+      logger.warn(`Connection ${this.id}: Certificate validation is disabled. This is insecure and should only be used in testing environments.`);
+    }
   }
 
   // Replace variables in URL with test data values

@@ -72,6 +72,7 @@ services:
       - CONNECTION_MODE=${CONNECTION_MODE:-instant}
       - CONNECTION_RATE=${CONNECTION_RATE:-10}
       - REPLICAS=${REPLICAS:-3}
+      - REJECT_UNAUTHORIZED=${REJECT_UNAUTHORIZED:-true}
       # RUNNER_ID will be set to the container hostname automatically
     depends_on:
       - influxdb

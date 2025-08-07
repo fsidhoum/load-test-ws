@@ -37,6 +37,7 @@ export interface Config {
   testMode: TestMode;
   httpUrl: string;
   httpMethod: string;
+  rejectUnauthorized: boolean;
 }
 
 // Parse and validate environment variables
@@ -122,6 +123,9 @@ function parseEnv(): Config {
 
   const httpMethod = process.env.HTTP_METHOD || 'GET';
 
+  // Certificate validation configuration (default to true for security)
+  const rejectUnauthorized = process.env.REJECT_UNAUTHORIZED !== 'false';
+
   return {
     wsUrl,
     numConnections,
@@ -138,7 +142,8 @@ function parseEnv(): Config {
     replicas,
     testMode,
     httpUrl,
-    httpMethod
+    httpMethod,
+    rejectUnauthorized
   };
 }
 

@@ -57,6 +57,7 @@ The runner service is configured via environment variables:
 | `CONNECTION_MODE` | Connection mode (instant or progressive) | instant |
 | `CONNECTION_RATE` | Connections per second in progressive mode | 10 |
 | `RUNNER_ID` | Unique identifier for the runner | auto-generated |
+| `REJECT_UNAUTHORIZED` | Whether to reject connections with invalid certificates (set to 'false' to ignore certificate errors) | true |
 
 ### Data Loader Service
 
@@ -286,6 +287,9 @@ export NUM_CONNECTIONS=500
 # Set the number of replicas
 export REPLICAS=5
 
+# Disable certificate validation if needed (for self-signed or invalid certificates)
+export REJECT_UNAUTHORIZED=false
+
 # Start the services
 docker-compose up -d
 ```
@@ -414,6 +418,8 @@ spec:
           value: "connection-stats"
         - name: LOG_LEVEL
           value: "info"
+        - name: REJECT_UNAUTHORIZED
+          value: "false"  # Set to false to ignore certificate errors
         resources:
           limits:
             cpu: "0.5"
