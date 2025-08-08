@@ -62,7 +62,7 @@ class HttpConnection {
   }
 
   // Send HTTP request
-  public connect(): void {
+  public connect(onComplete?: () => void): void {
     this.isClosing = false;
     this.connectionClosedCalled = false;
     this.connectStartTime = Date.now();
@@ -88,13 +88,13 @@ class HttpConnection {
         .finally(() => {
           // Simulate connection close after response is received
           if (!this.connectionClosedCalled) {
-            this.handleClose();
+            this.handleClose(onComplete);
           }
         });
     } catch (error) {
       logger.error(`Connection ${this.id}: Failed to create HTTP request: ${(error as Error).message}`);
       statsManager.connectionError();
-      this.scheduleReconnect();
+      this.scheduleReconnect(onComplete);
     }
   }
 
@@ -107,7 +107,7 @@ class HttpConnection {
   }
 
   // Handle connection close (after request completes)
-  private handleClose(): void {
+  private handleClose(onComplete?: () => void): void {
     logger.info(`Connection ${this.id}: HTTP request completed`);
 
     // Only call connectionClosed once per connection lifecycle
@@ -121,9 +121,13 @@ class HttpConnection {
     // Attempt to reconnect only if not intentionally closing AND the connection failed
     if (!this.isClosing && !this.isConnected()) {
       logger.info(`Connection ${this.id}: Request failed, scheduling reconnect`);
-      this.scheduleReconnect();
+      this.scheduleReconnect(onComplete);
     } else if (!this.isClosing && this.isConnected()) {
       logger.info(`Connection ${this.id}: Request succeeded, no reconnect needed`);
+      // Call the onComplete callback if provided
+      if (onComplete) {
+        onComplete();
+      }
     }
   }
 
@@ -143,7 +147,7 @@ class HttpConnection {
   }
 
   // Schedule reconnection attempt
-  private scheduleReconnect(): void {
+  private scheduleReconnect(onComplete?: () => void): void {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
     }
@@ -152,7 +156,7 @@ class HttpConnection {
 
     this.reconnectTimer = setTimeout(() => {
       logger.info(`Connection ${this.id}: Attempting to reconnect`);
-      this.connect();
+      this.connect(onComplete);
     }, config.retryDelayMs);
   }
 
@@ -226,37 +230,75 @@ class HttpManager {
     }
   }
 
-  // Create all connections at once
+  // Create all connections at once but execute them sequentially
   private async createInstantConnections(): Promise<void> {
     logger.info('Creating all connections instantly');
+    logger.info(`Using ${config.httpRequestsPerData} sequential requests per CSV line`);
 
+    let connectionId = 1;
+
+    // Create all connections first
     for (let i = 0; i < this.calculatedNumConnections; i++) {
       // Pop test data from Redis list if available
       const testData = this.hasTestData ? await redisClient.popTestData() : null;
 
-      const connection = new HttpConnection(config.httpUrl, config.httpMethod, i + 1, testData);
-      this.connections.push(connection);
-      connection.connect();
+      // Create multiple connections for the same test data based on httpRequestsPerData
+      for (let j = 0; j < config.httpRequestsPerData; j++) {
+        const connection = new HttpConnection(config.httpUrl, config.httpMethod, connectionId++, testData);
+        this.connections.push(connection);
+      }
     }
 
-    logger.info(`Created ${this.connections.length} connections`);
+    logger.info(`Created ${this.connections.length} connections (${this.calculatedNumConnections} data rows × ${config.httpRequestsPerData} sequential requests)`);
+
+    // Execute connections sequentially by data row
+    for (let i = 0; i < this.calculatedNumConnections; i++) {
+      const startIdx = i * config.httpRequestsPerData;
+      await this.executeConnectionsSequentially(startIdx, config.httpRequestsPerData);
+    }
+  }
+
+  // Helper method to execute a batch of connections sequentially
+  private executeConnectionsSequentially(startIndex: number, count: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const executeNext = (index: number) => {
+        if (index >= startIndex + count || index >= this.connections.length || this.isShuttingDown) {
+          resolve();
+          return;
+        }
+
+        const connection = this.connections[index];
+        logger.info(`Executing sequential request ${index + 1 - startIndex} of ${count} for data row ${Math.floor(startIndex / count) + 1}`);
+
+        connection.connect(() => {
+          // When this connection completes, execute the next one
+          executeNext(index + 1);
+        });
+      };
+
+      // Start with the first connection
+      executeNext(startIndex);
+    });
   }
 
   // Create connections progressively
   private async createProgressiveConnections(): Promise<void> {
     logger.info(`Creating connections progressively at rate of ${config.connectionRate} per second`);
+    logger.info(`Using ${config.httpRequestsPerData} sequential requests per CSV line`);
 
-    let createdCount = 0;
+    let createdDataRows = 0;
+    let totalConnections = 0;
+    let connectionId = 1;
     const intervalMs = 1000 / config.connectionRate;
 
     return new Promise((resolve) => {
       this.progressiveConnectionTimer = setInterval(async () => {
-        if (createdCount >= this.calculatedNumConnections || this.isShuttingDown) {
+        if (createdDataRows >= this.calculatedNumConnections || this.isShuttingDown) {
           if (this.progressiveConnectionTimer) {
             clearInterval(this.progressiveConnectionTimer);
             this.progressiveConnectionTimer = null;
           }
-          logger.info(`Finished creating ${createdCount} connections progressively`);
+          logger.info(`Finished creating ${totalConnections} connections progressively (${createdDataRows} data rows × ${config.httpRequestsPerData} sequential requests)`);
           resolve();
           return;
         }
@@ -264,14 +306,24 @@ class HttpManager {
         // Pop test data from Redis list if available
         const testData = this.hasTestData ? await redisClient.popTestData() : null;
 
-        const connection = new HttpConnection(config.httpUrl, config.httpMethod, createdCount + 1, testData);
-        this.connections.push(connection);
-        connection.connect();
-        createdCount++;
+        // Store the start index for this batch of connections
+        const startIndex = this.connections.length;
 
-        if (createdCount % 10 === 0) {
-          logger.info(`Created ${createdCount}/${this.calculatedNumConnections} connections`);
+        // Create multiple connections for the same test data based on httpRequestsPerData
+        for (let j = 0; j < config.httpRequestsPerData; j++) {
+          const connection = new HttpConnection(config.httpUrl, config.httpMethod, connectionId++, testData);
+          this.connections.push(connection);
+          totalConnections++;
         }
+
+        createdDataRows++;
+
+        if (createdDataRows % 10 === 0) {
+          logger.info(`Created ${totalConnections} connections (${createdDataRows}/${this.calculatedNumConnections} data rows × ${config.httpRequestsPerData} sequential requests)`);
+        }
+
+        // Execute the connections for this data row sequentially
+        await this.executeConnectionsSequentially(startIndex, config.httpRequestsPerData);
       }, intervalMs);
     });
   }

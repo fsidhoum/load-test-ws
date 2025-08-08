@@ -6,6 +6,7 @@ A Node.js application designed to test WebSocket and HTTP server capacity by sim
 
 - Supports two test modes: WebSocket and HTTP
 - Simulates multiple WebSocket connections or HTTP requests from a single container
+- Supports sequential execution of multiple HTTP requests per test data row
 - Supports all common HTTP methods (GET, POST, PUT, DELETE, etc.)
 - Supports deploying multiple replicas via Docker Compose or Kubernetes
 - Configurable connection modes: instant or progressive
@@ -58,6 +59,7 @@ The runner service is configured via environment variables:
 | `CONNECTION_RATE` | Connections per second in progressive mode | 10 |
 | `RUNNER_ID` | Unique identifier for the runner | auto-generated |
 | `REJECT_UNAUTHORIZED` | Whether to reject connections with invalid certificates (set to 'false' to ignore certificate errors) | true |
+| `HTTP_REQUESTS_PER_DATA` | Number of sequential HTTP requests to execute per test data row (when TEST_MODE=http) | 1 |
 
 ### Data Loader Service
 
@@ -290,6 +292,9 @@ export REPLICAS=5
 # Disable certificate validation if needed (for self-signed or invalid certificates)
 export REJECT_UNAUTHORIZED=false
 
+# Set the number of sequential HTTP requests per test data row
+export HTTP_REQUESTS_PER_DATA=3
+
 # Start the services
 docker-compose up -d
 ```
@@ -298,8 +303,10 @@ This will start:
 - An InfluxDB container for time-series statistics collection
 - A Redis container for storing test data
 - A data-loader container that reads the CSV file and stores data in Redis
-- Multiple WebSocket load tester containers (5 in this example)
-- Each container will establish 500 connections, for a total of 2,500 connections
+- Multiple HTTP load tester containers (5 in this example)
+- Each container will process 500 test data rows
+- For each test data row, it will execute 3 sequential HTTP requests (as specified by HTTP_REQUESTS_PER_DATA)
+- This results in a total of 7,500 HTTP requests (5 containers × 500 rows × 3 sequential requests)
 
 ### Scaling with Docker Compose
 

@@ -38,6 +38,7 @@ export interface Config {
   httpUrl: string;
   httpMethod: string;
   rejectUnauthorized: boolean;
+  httpRequestsPerData: number;
 }
 
 // Parse and validate environment variables
@@ -126,6 +127,12 @@ function parseEnv(): Config {
   // Certificate validation configuration (default to true for security)
   const rejectUnauthorized = process.env.REJECT_UNAUTHORIZED !== 'false';
 
+  // Number of parallel HTTP requests per CSV line (default to 1)
+  const httpRequestsPerData = parseInt(process.env.HTTP_REQUESTS_PER_DATA || '1', 10);
+  if (isNaN(httpRequestsPerData) || httpRequestsPerData <= 0) {
+    throw new Error('HTTP_REQUESTS_PER_DATA must be a positive number');
+  }
+
   return {
     wsUrl,
     numConnections,
@@ -143,7 +150,8 @@ function parseEnv(): Config {
     testMode,
     httpUrl,
     httpMethod,
-    rejectUnauthorized
+    rejectUnauthorized,
+    httpRequestsPerData: httpRequestsPerData
   };
 }
 
